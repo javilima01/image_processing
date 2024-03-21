@@ -1,15 +1,13 @@
 import numpy as np
 import skimage.io as skio
 import skimage.filters as skf
-import skimage.measure as skm                       
+import skimage.measure as skm
 import skimage.draw as skd
 import matplotlib.pyplot as plt
 import argparse
 
-class ImageProcessing:
 
-    def __init__(self):
-        self.windows = []
+class ImageProcessing:
 
     # Define a function to fill holes in the image and return the contours
     def fill_image(self, channel):
@@ -18,22 +16,20 @@ class ImageProcessing:
         return filled_image, skm.regionprops(filled_image)
 
     def get_pearson(self, image_1, image_2):
-        red_figure = image_1 > 0
-        green_figure = image_2 > 0
-
         # Compute Pearson correlation coefficient
-        pcc = np.corrcoef(red_figure.ravel(), green_figure.ravel())[0, 1]
+        pcc, _ = skm.pearson_corr_coeff(image_1, image_2, image_1 > 0)
         return pcc
 
-    def figure_pcc(self, img, window_name, data):
-        self.windows.append(window_name)
-        plt.figure(window_name)
+    def figure_pcc(self, img, data):
+        fig, ax = plt.subplots()
         if img.ndim < 3:
             plt.imshow(img, cmap="gray")
         else:
             plt.imshow(img)
 
-        for pcc, coordinate in zip(data["pcc"], data["coordinates"]):
+        for pcc, coordinate, props in zip(
+            data["pcc"], data["coordinates"], data["contour"]
+        ):
             plt.text(
                 coordinate[1],
                 coordinate[0],
@@ -43,21 +39,52 @@ class ImageProcessing:
                 ha="center",
             )
 
+            minr, minc, maxr, maxc = props.bbox
+            bx = (minc, maxc, maxc, minc, minc)
+            by = (minr, minr, maxr, maxr, minr)
+            ax.plot(bx, by, "-b", linewidth=2.5)
+
+    def crop_image(self, image, props):
+        # Get image dimensions
+        if image.ndim == 2:
+            height, width = image.shape
+        else:
+            height, width, _ = image.shape
+
+        # Extract bounding box coordinates from region properties
+        minr, minc, maxr, maxc = props.bbox
+
+        # Ensure the crop coordinates are within image bounds
+        top = max(0, minr)
+        bottom = min(height, maxr)
+        left = max(0, minc)
+        right = min(width, maxc)
+
+        # Crop the image
+        cropped_image = image[top:bottom, left:right]
+
+        return cropped_image
+    
 def parse_args():
-    parser = argparse.ArgumentParser(description='Program to calculate pearson correlation of images.')
+    parser = argparse.ArgumentParser(
+        description="Program to calculate pearson correlation of images."
+    )
 
     # Add command line arguments
-    parser.add_argument('--image', '-i', type=str, required=True, help='Image to analyze')
+    parser.add_argument(
+        "--image", "-i", type=str, required=True, help="Image to analyze"
+    )
 
     return parser.parse_args()
+
 
 if __name__ == "__main__":
     args = parse_args()
     img = args.image
 
     data = {
-        "green": {"coordinates": [], "pcc": []},
-        "red": {"coordinates": [], "pcc": []},
+        "green": {"coordinates": [], "pcc": [], "contour": []},
+        "red": {"coordinates": [], "pcc": [], "contour": []},
     }
     processor = ImageProcessing()
     # Read the image
@@ -80,22 +107,28 @@ if __name__ == "__main__":
 
     # Fill different figures using contours and compute Pearson correlation coefficient for each
     for props in red_contours:
-        pcc = processor.get_pearson(red_filled, green_filled)
+        green_cropped = processor.crop_image(green_filled, props)
+        red_cropped = processor.crop_image(red_filled, props)
+        pcc = processor.get_pearson(red_cropped, green_cropped)
         data["red"]["pcc"].append(pcc)
+        data["red"]["contour"].append(props)
 
         centroid = props.centroid
         data["red"]["coordinates"].append((centroid[0], centroid[1]))
 
     for props in green_contours:
-        pcc = processor.get_pearson(green_filled, red_filled)
+        green_cropped = processor.crop_image(green_filled, props)
+        red_cropped = processor.crop_image(red_filled, props)
+        pcc = processor.get_pearson(green_cropped, red_cropped)
         data["green"]["pcc"].append(pcc)
+        data["green"]["contour"].append(props)
 
         centroid = props.centroid
         data["green"]["coordinates"].append((centroid[0], centroid[1]))
 
-    processor.figure_pcc(red_filled, "Filled Red Figures", data["red"])
+    processor.figure_pcc(red_filled, data["red"])
 
-    processor.figure_pcc(green_filled, "Filled Green Figures", data["green"])
+    processor.figure_pcc(green_filled, data["green"])
 
     # Create red and green masks with the same shape as the original image
     red_mask = np.zeros_like(img)
@@ -109,7 +142,7 @@ if __name__ == "__main__":
         rr, cc = skd.polygon(props.coords[:, 0], props.coords[:, 1])
         green_mask[rr, cc, 1] = green[rr, cc]
 
-    processor.figure_pcc(red_mask, "RGB RED MASKED", data["red"])
-    processor.figure_pcc(green_mask, "RGB GREEN MASKED", data["green"])
+    processor.figure_pcc(red_mask, data["red"])
+    processor.figure_pcc(green_mask, data["green"])
 
     plt.show()
