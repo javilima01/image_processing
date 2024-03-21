@@ -63,11 +63,6 @@ if __name__ == "__main__":
     # Read the image
     img = skio.imread(img)
 
-    # Check if the image is sufficiently large
-    if img.shape[0] * img.shape[1] < 500 * 500:  # Adjust the threshold as needed
-        print("Image is too small. Skipping processing.")
-        exit()
-
     # Split the image into channels
     red = img[:, :, 0]
     green = img[:, :, 1]
@@ -85,7 +80,6 @@ if __name__ == "__main__":
 
     # Fill different figures using contours and compute Pearson correlation coefficient for each
     for props in red_contours:
-        print(props.filled_image)
         pcc = processor.get_pearson(red_filled, green_filled)
         data["red"]["pcc"].append(pcc)
 
