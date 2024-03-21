@@ -47,7 +47,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Program to calculate pearson correlation of images.')
 
     # Add command line arguments
-    parser.add_argument('--iamge', '-i', type=str, required=True, help='Image to analyze')
+    parser.add_argument('--image', '-i', type=str, required=True, help='Image to analyze')
 
     return parser.parse_args()
 
