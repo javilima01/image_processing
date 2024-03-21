@@ -17,7 +17,7 @@ class ImageProcessing:
 
     def get_pearson(self, image_1, image_2):
         # Compute Pearson correlation coefficient
-        pcc, _ = skm.pearson_corr_coeff(image_1, image_2, image_1 > 0)
+        pcc, _ = skm.pearson_corr_coeff(image_1, image_2)
         return pcc
 
     def figure_pcc(self, img, data):
